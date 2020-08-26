@@ -32,6 +32,7 @@ uio_dev *uio_init(const char *fname)
         free(dev);
         return NULL;
     }
+    dev->fd = fd;
     return dev;
 }
 
