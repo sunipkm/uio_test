@@ -8,6 +8,22 @@
 #include <poll.h>
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
+#include <signal.h>
+
+inline uint64_t get_nsec(void)
+{
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (uint64_t)ts.tv_sec * 1000000000L + ((uint64_t)ts.tv_nsec);
+}
+
+sig_atomic_t done = 0;
+
+void sighandler()
+{
+    done = 1;
+}
 
 typedef struct {
     int fd;
@@ -107,18 +123,36 @@ uint32_t uio_write_reg(uio_dev *dev, uint32_t offset, uint32_t val)
     return uio_read_reg(dev, offset);
 }
 
-uio_dev *dev;
+#define UIO_RESET    0x0
+#define UIO_ENABLE   0x1
+#define UIO_TSTAMP   0x8
+#define UIO_TRIG_IN  0x100
+#define UIO_BOOL_OUT 0x104
+#define UIO_CHAR_OUT 0x108
 
-void *wait_thread(void *id)
+void *wait_func(void *d)
 {
+    uio_dev *dev = (uio_dev *)d;
+    uint64_t start = get_nsec();
     uio_unmask_irq(dev);
     uio_wait_irq(dev, 10000);
+    uint64_t stop = get_nsec();
+    double time = (stop - start)*1e-9;
+    printf("%s: waited for %.9lf seconds\n", __func__, time);
+    printf("%s: UIO bool: 0x%01x\n", __func__, uio_read_reg(dev, UIO_BOOL_OUT));
+    printf("%s: UIO char: 0x%02x\n", __func__, uio_read_reg(dev, UIO_CHAR_OUT));
     return NULL;
 }
 
 int main()
 {
-    dev = uio_init("/dev/uio0");
+    // set up signal handler for sigint
+    struct sigaction sa;
+    sa.sa_handler = &sighandler;
+    sigaction(SIGINT, &sa, NULL);
+
+    // open device and mmap
+    uio_dev *dev = uio_init("/dev/uio0");
     if (dev == NULL)
     {
         return -1;
@@ -130,5 +164,33 @@ int main()
         return -1;
     }
     printf("IP UID: %d\n", uio_read_reg(dev, 0x8));
+
+    printf("Resetting ip: 0x%02x\n", uio_write_reg(dev, UIO_RESET, 0x1));
+    printf("Enabling ip: 0x%02x\n", uio_write_reg(dev, UIO_ENABLE, 0x1));
+
+    uint32_t timeout = 1000000 * ((rand() % 3) + 2); // 2 - 5 seconds
+    printf("IRQ trigger in %d seconds\n", timeout / 1000000);
+
+    printf("Creating interrupt handling thread...\n");
+    pthread_t irq_thread;
+    int ret = pthread_create(&irq_thread, NULL, &wait_func, (void *)dev);
+    if (ret)
+    {
+        perror(": error pthread_create");
+        return -1;
+    }
+    usleep(timeout);
+
+    printf("Triggering interrupt: 0x%02x\n", uio_write_reg(dev, UIO_TRIG_IN, 0xb)); // write 11
+
+    pthread_join(irq_thread, NULL);
+
+    printf("Waiting for SIGINT to quit...\n");
+
+    while(!done); // waiting for sigint
+
+    printf("Disabling interrupt: 0x%02x\n", uio_write_reg(dev, UIO_TRIG_IN, 0x0)); // write 0
+
+    uio_destroy(dev);
     return 0;
 }
