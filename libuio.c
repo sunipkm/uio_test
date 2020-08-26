@@ -120,6 +120,7 @@ uint32_t uio_write_reg(uio_dev *dev, uint32_t offset, uint32_t val)
 {
     uint32_t *tmp = dev->ptr;
     tmp[offset >> 2] = val;
+    printf("%s: wrote 0x%02x to 0x%03x\n", __func__, val, offset);
     return uio_read_reg(dev, offset);
 }
 
