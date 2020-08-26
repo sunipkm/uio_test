@@ -185,9 +185,10 @@ int main()
 
     pthread_join(irq_thread, NULL);
 
-    printf("Waiting for SIGINT to quit...\n");
-
-    while(!done); // waiting for sigint
+    printf("Enter [q] to quit...\n");
+    char b = '\0';
+    status = scanf(" %c", &b);
+    while(b != 'q' || b != 'Q'); // waiting for sigint
 
     printf("Disabling interrupt: 0x%02x\n", uio_write_reg(dev, UIO_TRIG_IN, 0x0)); // write 0
 
