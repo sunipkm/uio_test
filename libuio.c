@@ -136,6 +136,7 @@ void *wait_func(void *d)
     uio_dev *dev = (uio_dev *)d;
     uint64_t start = get_nsec();
     uio_unmask_irq(dev);
+    printf("%s: unmasked interrupt\n", __func__);
     uio_wait_irq(dev, 10000);
     uint64_t stop = get_nsec();
     double time = (stop - start)*1e-9;
