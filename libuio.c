@@ -143,6 +143,7 @@ void *wait_func(void *d)
     printf("%s: waited for %.9lf seconds\n", __func__, time);
     printf("%s: UIO bool: 0x%01x\n", __func__, uio_read_reg(dev, UIO_BOOL_OUT));
     printf("%s: UIO char: 0x%02x\n", __func__, uio_read_reg(dev, UIO_CHAR_OUT));
+    sleep(2);
     return NULL;
 }
 
@@ -183,7 +184,7 @@ int main()
     }
     usleep(timeout);
 
-    printf("Triggering interrupt: 0x%02x\n", uio_write_reg(dev, UIO_TRIG_IN, 0xb)); // write 11
+    printf("Triggering interrupt: 0x%02x\n", uio_write_reg(dev, UIO_TRIG_IN, 0xde)); // write 11
 
     pthread_join(irq_thread, NULL);
 
